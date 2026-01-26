@@ -48,6 +48,32 @@ coverage.xml
 *.cover
 *.py.cover
 .hypothesis/
+
+# SvelteKit build output
+.svelte-kit/
+build/
+dist/
+
+# SvelteKit environment variables
+.env
+.env.local
+.env.*.local
+
+# SvelteKit generated files
+.svelte-kit/
+
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Vite
+.vite/
+
+# Svelte compiler output
+*.svelte.d.ts
 .pytest_cache/
 cover/
 

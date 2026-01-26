@@ -22,3 +22,6 @@ async def get_recent_games(username, months=1):
         games.extend(data["games"])
 
     return games
+
+async def get_player_profile(username):
+    return await fetch(f"{BASE}/player/{username}")
