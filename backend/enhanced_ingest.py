@@ -135,14 +135,19 @@ class EnhancedIngestion:
         schema_manager.create_constraints_and_indexes()
         
         # Discover all players within 6 levels
+        logger.info(f"Discovering players from {start_username}...")
         discovered_players = await self.discover_players_recursive(start_username, 6)
+        
+        total_players = sum(len(players) for players in discovered_players.values())
+        logger.info(f"Discovered {total_players} total players across 6 levels")
         
         # Ingest players level by level
         for level, players in discovered_players.items():
             logger.info(f"Ingesting level {level} with {len(players)} players")
             
-            for player in players:
+            for i, player in enumerate(players):
                 try:
+                    logger.info(f"Processing player {i+1}/{len(players)}: {player}")
                     await self.ingest_player_all_time(player, level)
                 except Exception as e:
                     logger.error(f"Failed to ingest {player}: {e}")
@@ -159,12 +164,19 @@ class EnhancedIngestion:
         # Get player profile
         try:
             profile = await get_player_profile(username)
+            logger.info(f"Got profile for {username}: {profile.get('name', username)}")
         except Exception as e:
             logger.warning(f"Failed to get profile for {username}: {e}")
             profile = {}
         
         # Get all games
+        logger.info(f"Fetching all games for {username}...")
         games = await self.get_player_games_all_time(username)
+        logger.info(f"Found {len(games)} games for {username}")
+        
+        if not games:
+            logger.warning(f"No games found for {username}")
+            return
         
         # Process games and create relationships
         with driver.session() as session:
@@ -191,12 +203,16 @@ class EnhancedIngestion:
             )
             
             # Process games in batches
+            processed_count = 0
             for game in games:
                 white = game["white"]["username"].lower()
                 black = game["black"]["username"].lower()
                 
                 if white == username or black == username:
                     self._create_game_relationship(session, game, username)
+                    processed_count += 1
+            
+            logger.info(f"Processed {processed_count} games for {username}")
     
     def _create_game_relationship(self, session, game: Dict, current_player: str):
         """Create game relationship between two players"""
