@@ -5,6 +5,16 @@ from enhanced_ingest import EnhancedIngestion
 from schema import SchemaManager
 from ingest import driver
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('logs/chess_update.log'),
+        logging.StreamHandler()
+    ]
+)
+
 logger = logging.getLogger(__name__)
 
 class ChessDataScheduler:

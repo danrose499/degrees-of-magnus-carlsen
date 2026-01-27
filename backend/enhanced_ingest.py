@@ -1,4 +1,4 @@
-from chess_api import get_recent_games, get_player_profile
+from chess_api import get_recent_games, get_player_profile, fetch
 from neo4j import GraphDatabase
 from pydantic_settings import BaseSettings
 import httpx
@@ -39,31 +39,30 @@ class EnhancedIngestion:
         """Get all available games for a player"""
         try:
             # Get all archives for the player
-            archives = await get_player_profile(username)
-            if not archives.get("archives"):
+            profile = await get_player_profile(username)
+            if not profile.get("archives"):
                 return []
             
             games = []
-            # Process archives in batches to avoid rate limiting
-            batch_size = 12  # 12 months per batch
+            archive_urls = profile["archives"]
             
-            for i in range(0, len(archives["archives"]), batch_size):
-                batch_urls = archives["archives"][i:i+batch_size]
-                batch_games = []
+            # Process archives in batches to avoid rate limiting
+            batch_size = 12  # 12 archives per batch
+            
+            for i in range(0, len(archive_urls), batch_size):
+                batch_urls = archive_urls[i:i+batch_size]
                 
                 for url in batch_urls:
                     try:
-                        data = await get_recent_games(username, 1)  # This needs modification
-                        if data:
-                            batch_games.extend(data)
+                        data = await fetch(url)  # Fetch the specific archive URL
+                        if data and "games" in data:
+                            games.extend(data["games"])
                     except Exception as e:
                         logger.warning(f"Failed to fetch games for {username} from {url}: {e}")
                         continue
                 
-                games.extend(batch_games)
-                
                 # Add delay between batches to be respectful to the API
-                if i + batch_size < len(archives["archives"]):
+                if i + batch_size < len(archive_urls):
                     await asyncio.sleep(1)
             
             return games
@@ -282,18 +281,19 @@ class EnhancedIngestion:
     def update_ingestion_metadata(self, ingestion_type: str, from_date: datetime):
         """Update metadata about the ingestion process"""
         with driver.session() as session:
+            # Get counts first
+            player_count = session.run("MATCH (p:Player) RETURN count(p) as count").single()["count"]
+            rel_count = session.run("MATCH ()-[r:PLAYED]-() RETURN count(DISTINCT r) as count").single()["count"]
+            
+            # Update metadata
             session.run("""
             MERGE (meta:DataMetadata)
             SET meta.last_refreshed = datetime(),
                 meta.storing_from = date($from_date),
                 meta.ingestion_type = $type,
-                meta.total_players = (
-                    MATCH (p:Player) RETURN count(p) as count
-                ),
-                meta.total_relationships = (
-                    MATCH ()-[r:PLAYED]-() RETURN count(DISTINCT r) as count
-                )
-            """, from_date=from_date, type=ingestion_type)
+                meta.total_players = $player_count,
+                meta.total_relationships = $rel_count
+            """, from_date=from_date, type=ingestion_type, player_count=player_count, rel_count=rel_count)
     
     def cleanup_old_data(self, max_age_years: int = 5):
         """Remove players and games older than specified age"""
