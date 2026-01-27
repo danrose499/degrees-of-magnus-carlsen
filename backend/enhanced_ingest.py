@@ -40,10 +40,26 @@ class EnhancedIngestion:
         try:
             # Get player profile with archives
             profile = await get_player_profile(username)
+            logger.info(f"Profile keys for {username}: {list(profile.keys())}")
+            logger.info(f"Full profile data: {profile}")
+            
             archives = profile.get("archives", [])
             
             if not archives:
                 logger.warning(f"No archives found for {username}")
+                # Try the archives endpoint directly
+                try:
+                    archives_url = f"https://api.chess.com/pub/player/{username}/games/archives"
+                    logger.info(f"Trying direct archives URL: {archives_url}")
+                    archives_data = await fetch(archives_url)
+                    archives = archives_data.get("archives", [])
+                    logger.info(f"Direct archives result: {len(archives)} archives found")
+                except Exception as e:
+                    logger.error(f"Direct archives fetch failed: {e}")
+                    return []
+            
+            if not archives:
+                logger.warning(f"Still no archives found for {username}")
                 return []
             
             logger.info(f"Found {len(archives)} archives for {username}")
