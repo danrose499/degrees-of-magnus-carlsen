@@ -1,0 +1,76 @@
+name: Chess Data Updates
+
+on:
+  schedule:
+    # Monthly update - 2nd of each month at 02:00 UTC
+    - cron: '0 2 2 * *'
+    # Weekly check - Every Sunday at 03:00 UTC  
+    - cron: '0 3 * * 0'
+    # Daily monitoring - Every day at 04:00 UTC
+    - cron: '0 4 * * *'
+  
+  workflow_dispatch:
+    inputs:
+      job_type:
+        description: 'Type of job to run'
+        required: true
+        default: 'monitor'
+        type: choice
+        options:
+        - historical
+        - monthly
+        - weekly
+        - monitor
+        - cleanup
+
+jobs:
+  chess-update:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        cd backend
+        pip install -r requirements.txt
+        
+    - name: Run chess data job
+      env:
+        NEO4J_URI: ${{ secrets.NEO4J_URI }}
+        NEO4J_USER: ${{ secrets.NEO4J_USER }}
+        NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+        MAX_PLAYERS_PER_LEVEL: ${{ secrets.MAX_PLAYERS_PER_LEVEL || '10000' }}
+        MAX_TOTAL_PLAYERS: ${{ secrets.MAX_TOTAL_PLAYERS || '50000' }}
+      run: |
+        cd backend
+        
+        # Determine job type based on trigger
+        if [ "${{ github.event_name }}" = "schedule" ]; then
+          # Check which cron triggered this
+          if [ "$(date +%H)" = "02" ] && [ "$(date +%d)" = "02" ]; then
+            JOB_TYPE="monthly"
+          elif [ "$(date +%H)" = "03" ] && [ "$(date +%u)" = "0" ]; then
+            JOB_TYPE="weekly"  
+          else
+            JOB_TYPE="monitor"
+          fi
+        else
+          JOB_TYPE="${{ github.event.inputs.job_type }}"
+        fi
+        
+        echo "Running job type: $JOB_TYPE"
+        python scheduler.py $JOB_TYPE
+        
+    - name: Upload logs
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: chess-update-logs-${{ github.run_number }}
+        path: backend/logs/

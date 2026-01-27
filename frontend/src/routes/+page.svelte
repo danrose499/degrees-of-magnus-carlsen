@@ -7,6 +7,27 @@
 	let pathData = null;
 	let loading = false;
 	let error = '';
+	let lastRefreshed = null;
+	let storingFrom = null;
+
+	// Load data tracking from database on mount
+	async function loadMetadata() {
+		try {
+			const response = await fetch('/api/metadata');
+			if (response.ok) {
+				const metadata = await response.json();
+				if (metadata) {
+					lastRefreshed = metadata.last_refreshed ? new Date(metadata.last_refreshed) : null;
+					storingFrom = metadata.storing_from ? new Date(metadata.storing_from) : null;
+				}
+			}
+		} catch (err) {
+			console.error('Failed to load metadata:', err);
+		}
+	}
+
+	// Load metadata on component mount
+	loadMetadata();
 
 	async function searchPath() {
 		if (!username.trim()) return;
@@ -70,6 +91,10 @@
 		try {
 			const response = await fetch('/api/ingest/magnus', { method: 'POST' });
 			if (!response.ok) throw new Error('Failed to ingest Magnus data');
+			
+			// Reload metadata from database
+			await loadMetadata();
+			
 			alert('Magnus data ingested successfully!');
 		} catch (err) {
 			error = err.message;
@@ -128,4 +153,12 @@
 			{/if}
 		</section>
 	</div>
+	
+	<!-- Data info overlay -->
+	{#if lastRefreshed && storingFrom}
+		<div class="fixed bottom-4 right-4 text-xs text-gray-400 bg-white/80 backdrop-blur-sm rounded-lg px-3 py-2 shadow-sm">
+			<div>Data last refreshed: {lastRefreshed.toLocaleString()}</div>
+			<div>Storing games from: {storingFrom.toLocaleDateString()}</div>
+		</div>
+	{/if}
 </main>
