@@ -38,33 +38,42 @@ class EnhancedIngestion:
     async def get_player_games_all_time(self, username: str) -> List[Dict]:
         """Get all available games for a player"""
         try:
-            # Get all archives for the player
+            # Get player profile with archives
             profile = await get_player_profile(username)
-            if not profile.get("archives"):
+            archives = profile.get("archives", [])
+            
+            if not archives:
+                logger.warning(f"No archives found for {username}")
                 return []
             
+            logger.info(f"Found {len(archives)} archives for {username}")
             games = []
-            archive_urls = profile["archives"]
             
             # Process archives in batches to avoid rate limiting
             batch_size = 12  # 12 archives per batch
             
-            for i in range(0, len(archive_urls), batch_size):
-                batch_urls = archive_urls[i:i+batch_size]
+            for i in range(0, len(archives), batch_size):
+                batch_urls = archives[i:i+batch_size]
+                logger.info(f"Processing batch {i//batch_size + 1} with {len(batch_urls)} archives")
                 
                 for url in batch_urls:
                     try:
                         data = await fetch(url)  # Fetch the specific archive URL
                         if data and "games" in data:
-                            games.extend(data["games"])
+                            batch_games = data["games"]
+                            games.extend(batch_games)
+                            logger.info(f"Got {len(batch_games)} games from {url}")
+                        else:
+                            logger.warning(f"No games found in archive: {url}")
                     except Exception as e:
                         logger.warning(f"Failed to fetch games for {username} from {url}: {e}")
                         continue
                 
                 # Add delay between batches to be respectful to the API
-                if i + batch_size < len(archive_urls):
+                if i + batch_size < len(archives):
                     await asyncio.sleep(1)
             
+            logger.info(f"Total games fetched for {username}: {len(games)}")
             return games
         except Exception as e:
             logger.error(f"Error fetching games for {username}: {e}")
