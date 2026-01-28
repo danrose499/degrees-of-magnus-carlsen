@@ -87,19 +87,6 @@
 		}
 	}
 
-	async function ingestMagnus() {
-		try {
-			const response = await fetch('/api/ingest/magnus', { method: 'POST' });
-			if (!response.ok) throw new Error('Failed to ingest Magnus data');
-			
-			// Reload metadata from database
-			await loadMetadata();
-			
-			alert('Magnus data ingested successfully!');
-		} catch (err) {
-			error = err.message;
-		}
-	}
 </script>
 
 <main class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -134,12 +121,6 @@
 					</button>
 				</div>
 
-				<button
-					on:click={ingestMagnus}
-					class="text-sm text-gray-600 hover:text-gray-800 underline"
-				>
-					Refresh Magnus Data
-				</button>
 
 				{#if error}
 					<div class="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">

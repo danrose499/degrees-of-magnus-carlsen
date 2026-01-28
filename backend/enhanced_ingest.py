@@ -14,9 +14,10 @@ class Settings(BaseSettings):
     neo4j_uri: str
     neo4j_user: str
     neo4j_password: str
-    max_players_per_level: int = 10000  # Storage limit per level
-    max_total_players: int = 50000     # Overall storage limit
-    max_months_historical: int = 120   # 10 years for initial import
+    max_players_per_level: int = 5000   # Reduced for GitHub Actions
+    max_total_players: int = 20000     # Reduced for GitHub Actions
+    max_months_historical: int = 36    # 3 years instead of 10 for initial run
+    github_actions_mode: bool = True   # Flag for GitHub Actions optimizations
 
     class Config:
         env_file = ".env"
@@ -66,7 +67,7 @@ class EnhancedIngestion:
             games = []
             
             # Process archives in batches to avoid rate limiting
-            batch_size = 12  # 12 archives per batch
+            batch_size = 6 if settings.github_actions_mode else 12  # Smaller batches for GitHub Actions
             
             for i in range(0, len(archives), batch_size):
                 batch_urls = archives[i:i+batch_size]
@@ -166,21 +167,36 @@ class EnhancedIngestion:
         total_players = sum(len(players) for players in discovered_players.values())
         logger.info(f"Discovered {total_players} total players across 6 levels")
         
+        # GitHub Actions optimization: limit processing time
+        if settings.github_actions_mode and total_players > 1000:
+            logger.warning("GitHub Actions mode: Limiting to 1000 players to avoid timeout")
+            # Keep only the first few levels and limit players per level
+            for level in discovered_players:
+                if len(discovered_players[level]) > 200:
+                    discovered_players[level] = set(list(discovered_players[level])[:200])
+        
         # Ingest players level by level
+        processed_count = 0
         for level, players in discovered_players.items():
             logger.info(f"Ingesting level {level} with {len(players)} players")
             
             for i, player in enumerate(players):
                 try:
-                    logger.info(f"Processing player {i+1}/{len(players)}: {player}")
+                    processed_count += 1
+                    logger.info(f"Processing player {processed_count}/{total_players}: {player}")
                     await self.ingest_player_all_time(player, level)
+                    
+                    # GitHub Actions: add progress checkpoint
+                    if settings.github_actions_mode and processed_count % 50 == 0:
+                        logger.info(f"Progress checkpoint: {processed_count} players processed")
+                        
                 except Exception as e:
                     logger.error(f"Failed to ingest {player}: {e}")
                     continue
         
         # Update metadata
-        self.update_ingestion_metadata("historical", datetime.now() - timedelta(days=3650))
-        logger.info("Historical data import completed")
+        self.update_ingestion_metadata("historical", datetime.now() - timedelta(days=settings.max_months_historical * 30))
+        logger.info(f"Historical data import completed - processed {processed_count} players")
     
     async def ingest_player_all_time(self, username: str, distance_from_magnus: Optional[int] = None):
         """Ingest all-time data for a single player"""

@@ -47,8 +47,9 @@ jobs:
         NEO4J_URI: ${{ secrets.NEO4J_URI }}
         NEO4J_USER: ${{ secrets.NEO4J_USER }}
         NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
-        MAX_PLAYERS_PER_LEVEL: ${{ secrets.MAX_PLAYERS_PER_LEVEL || '10000' }}
-        MAX_TOTAL_PLAYERS: ${{ secrets.MAX_TOTAL_PLAYERS || '50000' }}
+        MAX_PLAYERS_PER_LEVEL: ${{ secrets.MAX_PLAYERS_PER_LEVEL || '2000' }}
+        MAX_TOTAL_PLAYERS: ${{ secrets.MAX_TOTAL_PLAYERS || '8000' }}
+        GITHUB_ACTIONS_MODE: "true"
       run: |
         cd backend
         
